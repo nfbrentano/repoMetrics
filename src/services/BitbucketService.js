@@ -53,8 +53,11 @@ export class BitbucketService extends BaseGitService {
       commits: 0,
       prsCreated: 0,
       prsMerged: 0,
+      prsOpen: 0,
       issuesOpen: 0,
       issuesClosed: 0,
+      issuesTotal: 0,
+      lastUpdate: null,
       authors: {},
       reviews: 0,
       totalReviewTime: 0,
@@ -66,6 +69,7 @@ export class BitbucketService extends BaseGitService {
     const commitsTimeline = {};
     const filteredCommits = commits.values ? commits.values.filter(c => new Date(c.date) >= new Date(since)) : [];
     results.commits = filteredCommits.length;
+    results.lastUpdate = filteredCommits.length > 0 && filteredCommits[0].date ? filteredCommits[0].date : null;
     filteredCommits.forEach(c => {
       const author = c.author?.raw || 'Desconhecido';
       results.authors[author] = (results.authors[author] || 0) + 1;
@@ -80,6 +84,7 @@ export class BitbucketService extends BaseGitService {
     const filteredPRs = prs.values ? prs.values.filter(p => new Date(p.created_on) >= new Date(since)) : [];
     results.prsCreated = filteredPRs.length;
     results.prsMerged = filteredPRs.filter(p => p.state === 'MERGED').length;
+    results.prsOpen = filteredPRs.filter(p => p.state === 'OPEN').length;
 
     filteredPRs.forEach(p => {
       if (p.state === 'MERGED' && p.merge_commit) {
@@ -108,6 +113,11 @@ export class BitbucketService extends BaseGitService {
       commits: results.commits,
       prsCreated: results.prsCreated,
       prsMerged: results.prsMerged,
+      prsOpen: results.prsOpen,
+      issuesOpen: results.issuesOpen,
+      issuesClosed: results.issuesClosed,
+      issuesTotal: results.issuesTotal,
+      lastUpdate: results.lastUpdate,
       reviewCoverage: results.prsCreated > 0 ? (results.pullsWithReview / results.prsCreated) * 100 : 0,
       avgTimeFirstReview: results.pullsWithReview > 0 ? results.totalReviewTime / results.pullsWithReview : 0,
       avgTimeMerge: results.prsMerged > 0 ? results.totalMergeTime / results.prsMerged : 0,

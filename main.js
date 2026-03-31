@@ -107,43 +107,96 @@ const refreshData = async () => {
 
   const titleEl = document.getElementById('tabTitle');
   const originalTitle = titleEl.innerText;
-  titleEl.innerText = 'Resolvendo repositórios na nuvem...';
-
-  // Render basic list before fetching
-  renderRepoList(rawRepos, true);
-
-  const resolvedRepos = await DataAggregator.expandWildcardRepos(rawRepos, (msg) => {
-    titleEl.innerText = msg;
-  });
-
-  updateRepoCount(resolvedRepos);
-
-  titleEl.innerText = 'Consolidando métricas...';
-
   const rangeMonths = parseInt(currentRange.replace('m', '')) || 6;
-  
+
   const pbContainer = document.getElementById('globalProgressBarContainer');
   const pbFill = document.getElementById('globalProgressBar');
+
+  // ── Step 1: Try loading cached data instantly ──
+  titleEl.innerText = 'Verificando cache local...';
+  const cached = await DataAggregator.getCachedMetrics(rangeMonths);
+
+  if (cached) {
+    // Exibe dados do cache IMEDIATAMENTE enquanto o sync roda em background
+    updateUI(cached);
+    renderCharts(cached);
+    const cachedRepos = (cached.repoDetails || []).map(d => d.repoInfo).filter(Boolean);
+    if (cachedRepos.length > 0) {
+      updateRepoCount(cachedRepos);
+      renderRepoList(cachedRepos, cached.repoDetails || [], false);
+    }
+    titleEl.innerText = originalTitle;
+    updateLastSyncIndicator();
+  }
+
+  // ── Step 2: Sync incremental in background ──
+  titleEl.innerText = cached ? 'Atualizando dados em background...' : 'Sincronizando repositórios...';
+
+  // Render basic list
+  if (!cached) {
+    renderRepoList(rawRepos, [], true);
+  }
+
   if (pbContainer) {
     pbContainer.style.display = 'block';
     pbFill.style.width = '0%';
   }
 
-  const metrics = await DataAggregator.aggregate(resolvedRepos, rangeMonths, (completed, total, repo) => {
-    titleEl.innerText = `Lendo ${repo.repo} (${completed}/${total})...`;
-    if (pbFill) pbFill.style.width = `${(completed / total) * 100}%`;
-  });
+  try {
+    const { metrics, resolvedRepos } = await DataAggregator.syncAndAggregate(
+      rawRepos, rangeMonths, (completed, total, repo) => {
+        titleEl.innerText = `Sincronizando ${repo.repo} (${completed}/${total})...`;
+        if (pbFill) pbFill.style.width = `${(completed / total) * 100}%`;
+      }
+    );
+
+    if (metrics) {
+      updateUI(metrics);
+      renderCharts(metrics);
+      renderRepoList(
+        resolvedRepos.length > 0 ? resolvedRepos : rawRepos,
+        metrics.repoDetails || [],
+        false
+      );
+      updateRepoCount(resolvedRepos.length > 0 ? resolvedRepos : rawRepos);
+    }
+  } catch (err) {
+    console.error('Sync error:', err);
+    if (!cached) {
+      titleEl.innerText = '⚠️ Falha ao sincronizar. Verifique o console.';
+      return;
+    }
+  }
 
   if (pbContainer) pbContainer.style.display = 'none';
-
-  updateUI(metrics);
-  renderCharts(metrics);
-  renderRepoList(resolvedRepos, false); // Update list state to done with expanded repos
-  
   titleEl.innerText = originalTitle;
+  updateLastSyncIndicator();
 };
 
-const renderRepoList = (repos, isSyncing = false) => {
+const updateLastSyncIndicator = async () => {
+  try {
+    const res = await fetch('/api/sync/status');
+    if (!res.ok) return;
+    const { status } = await res.json();
+    if (status && status.length > 0) {
+      const latest = status[0].last_synced_at;
+      if (latest) {
+        const d = new Date(latest + 'Z');
+        const timeStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const dateStr = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        const indicator = document.getElementById('lastSyncIndicator');
+        if (indicator) {
+          indicator.innerText = `Último sync: ${dateStr} ${timeStr}`;
+          indicator.style.display = 'inline';
+        }
+      }
+    }
+  } catch {
+    // Silently ignore if backend is down
+  }
+};
+
+const renderRepoList = (repos, repoDetails = [], isSyncing = false) => {
   const container = document.getElementById('integratedRepoContainer');
   if (!container) return;
   
@@ -166,6 +219,22 @@ const renderRepoList = (repos, isSyncing = false) => {
       : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`;
     const statusText = isSyncing ? 'Sincronizando...' : 'Conectado';
 
+    const details = repoDetails.find(r => r.repoInfo && r.repoInfo.id === repo.id);
+    const prsOpen = details ? (details.prsOpen || 0) : 0;
+    const issuesTotal = details ? (details.issuesTotal || 0) : 0;
+    
+    let lastUpdateStr = '-';
+    if (details && details.lastUpdate) {
+      const d = new Date(details.lastUpdate);
+      const diffMs = new Date() - d;
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      
+      if (diffDays > 0) lastUpdateStr = `${diffDays} dia${diffDays > 1 ? 's' : ''} atrás`;
+      else if (diffHours > 0) lastUpdateStr = `${diffHours} hr${diffHours > 1 ? 's' : ''} atrás`;
+      else lastUpdateStr = `Recentemente`;
+    }
+
     return `
       <div class="repo-api-card">
         <div class="repo-api-header">
@@ -177,6 +246,20 @@ const renderRepoList = (repos, isSyncing = false) => {
         <div class="repo-api-body">
           <p>${repo.namespace}</p>
           <h4>${repo.repo}</h4>
+          <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.75rem; color: var(--text-muted)">
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/></svg>
+              ${prsOpen} PRs Abertos
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              ${issuesTotal} Issues
+            </div>
+            <div style="grid-column: 1/-1; display: flex; align-items: center; gap: 4px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; margin-top: 4px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Atualizado: <span style="color: white; font-weight: 500">${lastUpdateStr}</span>
+            </div>
+          </div>
         </div>
         <div class="repo-api-status ${statusClass}">
           ${statusIcon} ${statusText}
