@@ -7,41 +7,101 @@ export class AzureService extends BaseGitService {
       'Accept': 'application/json'
     };
     
-    // Supondo namespace no formato 'org/project'
     const parts = namespace.split('/');
-    if (parts.length < 2) throw new Error('Para o Azure, o namespace deve ser no formato "organizacao/projeto".');
-    const [org, proj] = parts;
+    const org = parts[0];
+    const proj = parts[1]; // Pode ser undefined se o usuário digitar só a org
+
+    if (!org) throw new Error('Organização inválida para o Azure DevOps.');
 
     let allRepos = [];
-    let skip = 0;
-    const top = 100;
-    let keepGoing = true;
 
-    while (keepGoing) {
-      if (onProgress) onProgress(`Azure: Buscando repositórios (${skip} até ${skip+top}) de ${namespace}...`);
-
-      const res = await fetch(`https://dev.azure.com/${org}/${proj}/_apis/git/repositories?$top=${top}&$skip=${skip}&api-version=6.0`, { headers: authHeaders });
-      if (!res.ok) throw new Error(`Falha ao buscar repositórios do Azure DevOps (skip ${skip}).`);
+    if (proj) {
+      if (onProgress) onProgress(`Azure: Buscando repositórios de ${namespace}...`);
+      try {
+        const url = `https://dev.azure.com/${org}/${proj}/_apis/git/repositories?api-version=6.0`;
+        const res = await fetch(url, { headers: authHeaders });
+        if (!res.ok) throw new Error(`Falha ao buscar repositórios do Azure DevOps. Status: ${res.status}`);
+        
+        const data = await res.json();
+        allRepos = data.value || [];
+      } catch (e) {
+        console.warn(`Erro no Azure DevOps projeto: ${e.message}`);
+        throw e;
+      }
+    } else {
+      // Buscar todos os projetos primeiro
+      if (onProgress) onProgress(`Azure: Buscando projetos da organização ${org}...`);
       
-      const data = await res.json();
-      const chunk = data.value || [];
-      if (chunk.length === 0) {
-        keepGoing = false;
-      } else {
-        allRepos = allRepos.concat(chunk);
-        skip += chunk.length;
-        if (chunk.length < top) keepGoing = false; // exhausted
+      let projects = [];
+      let skipProj = 0;
+      let keepGoingProj = true;
+      let projectIds = new Set();
+      
+      while (keepGoingProj) {
+        // Atenção: Azure DevOps exige 'skip' e não '$skip' na maioria das rotas
+        const url = `https://dev.azure.com/${org}/_apis/projects?$top=100&skip=${skipProj}&api-version=6.0`;
+        const res = await fetch(url, { headers: authHeaders });
+        if (!res.ok) throw new Error(`Falha ao buscar projetos do Azure DevOps. Status: ${res.status}`);
+        
+        const data = await res.json();
+        const chunk = data.value || [];
+        if (chunk.length === 0) {
+          keepGoingProj = false;
+        } else {
+          let newProjects = false;
+          for (const c of chunk) {
+            if (!projectIds.has(c.id)) {
+              projectIds.add(c.id);
+              projects.push(c);
+              newProjects = true;
+            }
+          }
+          
+          if (!newProjects) {
+            // Se a API ignorar o pagination e retornar o mesmo bloco, nós quebramos o loop
+            keepGoingProj = false;
+          } else {
+            skipProj += chunk.length;
+            if (chunk.length < 100) keepGoingProj = false;
+          }
+        }
+      }
+      
+      // Para cada projeto, buscar os repositórios
+      for (const p of projects) {
+        if (onProgress) onProgress(`Azure: Buscando repositórios do projeto ${p.name}...`);
+        
+        try {
+          const url = `https://dev.azure.com/${org}/${p.id}/_apis/git/repositories?api-version=6.0`;
+          const res = await fetch(url, { headers: authHeaders });
+          if (!res.ok) {
+            console.warn(`Aviso: falha ao buscar repositórios do projeto ${p.name}`);
+            continue; // Se falhar um projeto, pula e tenta o próximo
+          }
+          
+          const data = await res.json();
+          const chunk = data.value || [];
+          allRepos = allRepos.concat(chunk);
+        } catch (e) {
+          console.warn(`Aviso: Erro inesperado no projeto ${p.name} - ${e.message}`);
+        }
       }
     }
     
-    return allRepos.map(repo => ({
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-      provider: 'azure',
-      token,
-      namespace,
-      repo: repo.name,
-      active: true
-    }));
+    return allRepos.map(repo => {
+      // O endpoint do repository no Azure sempre retorna a qual project ele pertence em repo.project.name
+      const projectName = repo.project && repo.project.name ? repo.project.name : proj;
+      const fullNamespace = `${org}/${projectName}`;
+
+      return {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+        provider: 'azure',
+        token,
+        namespace: fullNamespace,
+        repo: repo.name,
+        active: true
+      };
+    });
   }
 
   constructor(config) {

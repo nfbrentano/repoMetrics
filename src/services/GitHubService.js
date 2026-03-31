@@ -107,9 +107,19 @@ export class GitHubService extends BaseGitService {
       }
     });
 
-    // Fetch Reviews for each PR
-    // Optimization: Parallel fetch for reviews
-    const reviewsData = await Promise.all(prs.map(p => this.fetchReviews(p.number)));
+    // Fetch Reviews for each PR (Processando em lotes para evitar Rate Limit)
+    let reviewsData = [];
+    const REVIEWS_CHUNK_SIZE = 10;
+    
+    for (let i = 0; i < prs.length; i += REVIEWS_CHUNK_SIZE) {
+      const prChunk = prs.slice(i, i + REVIEWS_CHUNK_SIZE);
+      const prChunkData = await Promise.all(prChunk.map(p => this.fetchReviews(p.number)));
+      reviewsData = reviewsData.concat(prChunkData);
+      
+      if (i + REVIEWS_CHUNK_SIZE < prs.length) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // Delay pequeno entre lotes de reviews
+      }
+    }
     
     reviewsData.forEach((reviews, index) => {
       if (reviews.length > 0) {

@@ -45,29 +45,41 @@ export class DataAggregator {
 
     let completed = 0;
     const total = repos.length;
+    let allResults = [];
+    const CHUNK_SIZE = 1; // Processa em 1 por vez para não estourar conexões do navegador / Rate limit severo
 
-    const fetchPromises = repos.map(repo => {
-      try {
-        const service = this.getService(repo);
-        return service.fetchAll(rangeInMonths).then(res => {
+    for (let i = 0; i < repos.length; i += CHUNK_SIZE) {
+      const chunk = repos.slice(i, i + CHUNK_SIZE);
+      
+      const fetchPromises = chunk.map(repo => {
+        try {
+          const service = this.getService(repo);
+          return service.fetchAll(rangeInMonths).then(res => {
+            completed++;
+            if (onProgress) onProgress(completed, total, repo);
+            return res;
+          }).catch(err => {
+            completed++;
+            if (onProgress) onProgress(completed, total, repo);
+            console.error(`Falha ao buscar dados para ${repo.repo}:`, err);
+            return null;
+          });
+        } catch (e) {
           completed++;
           if (onProgress) onProgress(completed, total, repo);
-          return res;
-        }).catch(err => {
-          completed++;
-          if (onProgress) onProgress(completed, total, repo);
-          console.error(`Falha ao buscar dados para ${repo.repo}:`, err);
+          console.error(`Erro ao instanciar serviço para ${repo.repo}:`, e);
           return null;
-        });
-      } catch (e) {
-        completed++;
-        if (onProgress) onProgress(completed, total, repo);
-        console.error(`Erro ao instanciar serviço para ${repo.repo}:`, e);
-        return null;
+        }
+      });
+      
+      const chunkResults = await Promise.all(fetchPromises);
+      allResults = allResults.concat(chunkResults.filter(p => p !== null));
+      
+      // Delay (500 ms) após cada repositório
+      if (i + CHUNK_SIZE < repos.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
-    });
-
-    const allResults = (await Promise.all(fetchPromises)).filter(p => p !== null);
+    }
 
     // Consolidate values
     const combined = this.getEmptyState();

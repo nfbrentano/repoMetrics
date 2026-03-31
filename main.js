@@ -116,6 +116,8 @@ const refreshData = async () => {
     titleEl.innerText = msg;
   });
 
+  updateRepoCount(resolvedRepos);
+
   titleEl.innerText = 'Consolidando métricas...';
 
   const rangeMonths = parseInt(currentRange.replace('m', '')) || 6;
