@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RepoMetrics | Dashboard de Engenharia</title>
+    <link rel="stylesheet" href="./index.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- Top Navigation -->
+      <header class="top-nav">
+        <div class="logo">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary)"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <span>RepoMetrics</span>
+        </div>
+
+        <nav class="nav-pills" id="main-nav">
+          <button class="nav-item active" data-tab="atividade">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            Atividade
+          </button>
+          <button class="nav-item" data-tab="colaboracao">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Colaboração
+          </button>
+          <button class="nav-item" data-tab="repositorios">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+            Repositórios
+          </button>
+        </nav>
+
+        <div class="actions-bar">
+          <div class="global-filters" style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 4px; display: flex; gap: 4px;">
+            <button class="filter-btn" data-range="1m" style="background: transparent; border: none; color: var(--text-muted); padding: 4px 12px; font-weight: 600; cursor: pointer; border-radius: 8px;">1m</button>
+            <button class="filter-btn active" data-range="6m" style="background: var(--primary); border: none; color: #fff; padding: 4px 12px; font-weight: 600; cursor: pointer; border-radius: 8px;">6m</button>
+          </div>
+          <button class="action-btn" id="openRepoManager">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            Gerenciar Repos
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Content Container -->
+      <main class="content">
+        <header class="view-header">
+          <div>
+            <h2 id="tabTitle">Painel de Atividade</h2>
+            <p id="repoCount" style="margin-bottom: 8px;">0 repositórios consolidados • <span id="currentDateRange">Últimos 6 meses</span></p>
+            <div id="globalProgressBarContainer" style="display: none; width: 100%; min-width: 300px; max-width: 400px; height: 6px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-top: 8px;">
+              <div id="globalProgressBar" style="width: 0%; height: 100%; background: var(--success); transition: width 0.3s ease;"></div>
+            </div>
+          </div>
+        </header>
+
+        <!-- Aba Atividade -->
+        <div id="atividade" class="tab-content active">
+          <div class="kpi-grid">
+            <!-- Commits -->
+            <div class="kpi-card" id="kpi-commits">
+              <span class="kpi-label">Volume de Commits</span>
+              <div class="kpi-value" id="val-commits">0</div>
+              <div class="kpi-icon-container">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><line x1="3" y1="12" x2="9" y2="12"/><line x1="15" y1="12" x2="21" y2="12"/></svg>
+              </div>
+              <div class="kpi-progress-bg">
+                <div class="kpi-progress-fill" style="width: 75%"></div>
+              </div>
+            </div>
+
+            <!-- PRs Criados -->
+            <div class="kpi-card" id="kpi-prs-created">
+              <span class="kpi-label">PRs Criados</span>
+              <div class="kpi-value" id="val-prs-created">0</div>
+              <div class="kpi-icon-container" style="color: var(--secondary)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>
+              </div>
+              <div class="kpi-progress-bg">
+                <div class="kpi-progress-fill" style="width: 45%; background: var(--secondary)"></div>
+              </div>
+            </div>
+
+            <!-- PRs Mergeados -->
+            <div class="kpi-card" id="kpi-prs-merged">
+              <span class="kpi-label">PRs Mergeados</span>
+              <div class="kpi-value" id="val-prs-merged">0</div>
+              <div class="kpi-icon-container" style="color: var(--success)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 12.5V10a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v2.5"/><circle cx="12" cy="16" r="3"/></svg>
+              </div>
+              <div class="kpi-progress-bg">
+                <div class="kpi-progress-fill" style="width: 90%; background: var(--success)"></div>
+              </div>
+            </div>
+
+            <!-- Issues -->
+            <div class="kpi-card" id="kpi-issues">
+              <span class="kpi-label">Issues Ativas</span>
+              <div class="kpi-value" id="val-issues">0</div>
+              <div class="kpi-icon-container" style="color: var(--danger)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </div>
+              <div class="kpi-progress-bg">
+                <div class="kpi-progress-fill" style="width: 30%; background: var(--danger)"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="chart-container-grid">
+            <div class="chart-card">
+              <h3 style="margin-bottom: 2rem; font-weight: 700; color: #fff">Volume de Commits</h3>
+              <div id="activityChart"></div>
+            </div>
+            <div class="chart-card">
+              <h3 style="margin-bottom: 2rem; font-weight: 700; color: #fff">Top Contribuidores</h3>
+              <div id="authorsChart"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Aba Colaboração -->
+        <div id="colaboracao" class="tab-content">
+          <div class="kpi-grid">
+            <!-- Reviews -->
+            <div class="kpi-card">
+              <span class="kpi-label">Reviews Realizados</span>
+              <div class="kpi-value" id="val-reviews">0</div>
+              <div class="kpi-icon-container">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+              </div>
+              <div class="kpi-progress-bg"><div class="kpi-progress-fill" style="width: 60%"></div></div>
+            </div>
+
+            <!-- Time to Review -->
+            <div class="kpi-card">
+              <span class="kpi-label">Tempo p/ 1ª Review</span>
+              <div class="kpi-value" id="val-time-review">0h</div>
+              <div class="kpi-icon-container" style="color: var(--warning)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <div class="kpi-progress-bg"><div class="kpi-progress-fill" style="width: 40%; background: var(--warning)"></div></div>
+            </div>
+
+            <!-- Cobertura -->
+            <div class="kpi-card">
+              <span class="kpi-label">Cobertura de Review</span>
+              <div class="kpi-value" id="val-coverage">0%</div>
+              <div class="kpi-icon-container" style="color: var(--success)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </div>
+              <div class="kpi-progress-bg"><div class="kpi-progress-fill" style="width: 85%; background: var(--success)"></div></div>
+            </div>
+
+            <!-- Time to Merge -->
+            <div class="kpi-card">
+              <span class="kpi-label">Tempo Médio p/ Merge</span>
+              <div class="kpi-value" id="val-time-merge">0h</div>
+              <div class="kpi-icon-container" style="color: var(--secondary)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m8 3 4 8 5-5 5 15H2L8 3z"/></svg>
+              </div>
+              <div class="kpi-progress-bg"><div class="kpi-progress-fill" style="width: 50%; background: var(--secondary)"></div></div>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <h3 style="margin-bottom: 2rem; font-weight: 700; color: #fff">Comentários vs Reviews por Período</h3>
+            <div id="collaborationChart"></div>
+          </div>
+        </div>
+
+        <!-- Aba Repositórios -->
+        <div id="repositorios" class="tab-content">
+          <div class="repo-list-header">
+            <h3>Repositórios Conectados à API</h3>
+            <p>Lista de todas as origens de dados (repositórios git) atualmente ativas e agregadas no dashboard.</p>
+          </div>
+          <div class="repo-grid" id="integratedRepoContainer">
+            <!-- Repositórios serão inseridos aqui pelo JS -->
+          </div>
+        </div>
+      </main>
+
+      <!-- Modal Overlay -->
+      <div class="modal-overlay" id="repoModal">
+        <div class="modal-content" style="background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 24px; padding: 3rem">
+          <h2 style="margin-bottom: 2rem; text-align: center; color: #fff">Gerenciar Repositórios</h2>
+          
+          <div id="repoForm" style="display: grid; gap: 1rem">
+            <select id="providerSelect" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px; font-weight: 600">
+              <option value="github">GitHub</option>
+              <option value="azure">Azure DevOps</option>
+              <option value="gitlab">GitLab</option>
+              <option value="bitbucket">Bitbucket</option>
+            </select>
+            <input type="text" id="repoToken" placeholder="Personal Access Token (PAT)" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px" />
+            <input type="text" id="repoNamespace" placeholder="Dono / Organização / Projeto" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px" />
+            <div class="form-group checkbox-group">
+              <input type="checkbox" id="repoWildcard">
+              <label for="repoWildcard" style="margin-bottom: 0; color: white;">Importar todos os repositórios (Auto-discovery, máx 30)</label>
+            </div>
+            <input type="text" id="repoName" placeholder="Nome do Repositório (Slug)" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px" />
+            <button id="addRepoBtn" style="background: var(--primary); color: white; border: none; padding: 1rem; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 1rem; box-shadow: 0 4px 15px var(--primary-glow)">Adicionar Repositório</button>
+          </div>
+
+          <div id="repoList" style="margin-top: 2.5rem; border-top: 1px solid var(--glass-border); padding-top: 1.5rem">
+            <p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 1rem">REPOSITÓRIOS CONFIGURADOS</p>
+            <div id="activeReposContainer" style="display: grid; gap: 0.75rem; max-height: 250px; overflow-y: auto"></div>
+          </div>
+
+          <button id="closeRepoModal" style="position: absolute; top: 1.5rem; right: 1.5rem; background: none; border: none; color: var(--text-muted); cursor: pointer">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>
