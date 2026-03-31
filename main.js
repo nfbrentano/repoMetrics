@@ -250,7 +250,7 @@ const renderCharts = (metrics) => {
   if (authorsCtx) {
     if (chartInstances.authors) chartInstances.authors.destroy();
     
-    const sortedAuthors = Object.entries(metrics.authors).sort((a,b) => b[1] - a[1]).slice(0, 5);
+    const sortedAuthors = Object.entries(metrics.authors).sort((a,b) => b[1] - a[1]).slice(0, 10);
     
     chartInstances.authors = new ApexCharts(authorsCtx, {
       ...chartOptionsBase,

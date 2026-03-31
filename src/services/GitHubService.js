@@ -64,11 +64,12 @@ export class GitHubService extends BaseGitService {
 
   async fetchAll(rangeInMonths = 6) {
     const since = this.getSinceDate(rangeInMonths);
-    const [commits, prs, issues] = await Promise.all([
-      this.fetchCommits(since),
-      this.fetchPRs(since),
-      this.fetchIssues(since)
-    ]);
+    // Fetch sequentially to prevent GitHub's aggressive secondary rate limits
+    const commits = await this.fetchCommits(since);
+    await new Promise(r => setTimeout(r, 200));
+    const prs = await this.fetchPRs(since);
+    await new Promise(r => setTimeout(r, 200));
+    const issues = await this.fetchIssues(since);
 
     // Data aggregation
     const results = {
@@ -88,10 +89,10 @@ export class GitHubService extends BaseGitService {
     // Calculate timelines and participation
     const commitsTimeline = {};
     commits.forEach(c => {
-      const author = c.commit.author.name;
+      const author = c.commit?.author?.name || c.author?.login || 'Desconhecido';
       results.authors[author] = (results.authors[author] || 0) + 1;
       
-      if (c.commit && c.commit.author && c.commit.author.date) {
+      if (c.commit?.author?.date) {
         const dateObj = new Date(c.commit.author.date);
         const dateKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
         commitsTimeline[dateKey] = (commitsTimeline[dateKey] || 0) + 1;
@@ -145,6 +146,7 @@ export class GitHubService extends BaseGitService {
       authors: results.authors,
       reviews: results.reviews,
       comments: results.reviews, // Simplification for now
+      pullsWithReview: results.pullsWithReview,
       commitsTimeline
     };
   }
@@ -152,12 +154,14 @@ export class GitHubService extends BaseGitService {
   async fetchCommits(since) {
     const url = `${this.baseUrl}/repos/${this.namespace}/${this.repo}/commits?since=${since}&per_page=100`;
     const res = await fetch(url, { headers: this.headers });
+    if (!res.ok) console.warn(`GitHub [Commits] falhou para ${this.repo} com status ${res.status}`);
     return res.ok ? await res.json() : [];
   }
 
   async fetchPRs(since) {
     const url = `${this.baseUrl}/repos/${this.namespace}/${this.repo}/pulls?state=all&per_page=100`;
     const res = await fetch(url, { headers: this.headers });
+    if (!res.ok) console.warn(`GitHub [PRs] falhou para ${this.repo} com status ${res.status}`);
     const data = res.ok ? await res.json() : [];
     // Filter by since manually as GitHub API doesn't support 'since' for pulls directly
     return data.filter(p => new Date(p.created_at) >= new Date(since));

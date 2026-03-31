@@ -46,40 +46,32 @@ export class DataAggregator {
     let completed = 0;
     const total = repos.length;
     let allResults = [];
-    const CHUNK_SIZE = 1; // Processa em 1 por vez para não estourar conexões do navegador / Rate limit severo
-
-    for (let i = 0; i < repos.length; i += CHUNK_SIZE) {
-      const chunk = repos.slice(i, i + CHUNK_SIZE);
-      
-      const fetchPromises = chunk.map(repo => {
+    
+    // Otimização: Fila de concorrência inteligente (Worker Pool)
+    // Processa até 4 repositórios simultaneamente de forma contínua, sem pausas artificiais de 500ms.
+    // Isso mantém as requisições fluindo na capacidade máxima permitida pela rede do navegador.
+    const CONCURRENCY_LIMIT = 4;
+    const queue = [...repos]; // Clone para consumir como fila segura
+    
+    const worker = async () => {
+      while (queue.length > 0) {
+        const repo = queue.shift(); // Pega o próximo da fila
         try {
           const service = this.getService(repo);
-          return service.fetchAll(rangeInMonths).then(res => {
-            completed++;
-            if (onProgress) onProgress(completed, total, repo);
-            return res;
-          }).catch(err => {
-            completed++;
-            if (onProgress) onProgress(completed, total, repo);
-            console.error(`Falha ao buscar dados para ${repo.repo}:`, err);
-            return null;
-          });
-        } catch (e) {
+          const res = await service.fetchAll(rangeInMonths);
+          if (res) allResults.push(res);
+        } catch (err) {
+          console.error(`Falha ao buscar dados para ${repo.repo}:`, err);
+        } finally {
           completed++;
           if (onProgress) onProgress(completed, total, repo);
-          console.error(`Erro ao instanciar serviço para ${repo.repo}:`, e);
-          return null;
         }
-      });
-      
-      const chunkResults = await Promise.all(fetchPromises);
-      allResults = allResults.concat(chunkResults.filter(p => p !== null));
-      
-      // Delay (500 ms) após cada repositório
-      if (i + CHUNK_SIZE < repos.length) {
-        await new Promise(resolve => setTimeout(resolve, 500));
       }
-    }
+    };
+
+    // Inicializa 4 executores trabalhando paralelamente consumindo a fila
+    const workers = Array.from({ length: CONCURRENCY_LIMIT }, () => worker());
+    await Promise.all(workers);
 
     // Consolidate values
     const combined = this.getEmptyState();
@@ -94,6 +86,7 @@ export class DataAggregator {
       combined.issuesClosed += res.issuesClosed || 0;
       combined.reviews += res.reviews || 0;
       combined.comments += res.comments || 0;
+      combined.pullsWithReview += res.pullsWithReview || 0;
 
       // Merge commits timeline
       if (res.commitsTimeline) {
@@ -114,7 +107,10 @@ export class DataAggregator {
 
     combined.avgTimeFirstReview = combined.prsCreated > 0 ? combined.totalReviewTime / combined.prsCreated : 0;
     combined.avgTimeMerge = combined.prsMerged > 0 ? combined.totalMergeTime / combined.prsMerged : 0;
-    combined.reviewCoverage = combined.prsCreated > 0 ? (combined.reviews / combined.prsCreated) * 100 : 0; // Rough estimate
+    
+    // Cálculo de cobertura real: % de PRs que receberam ao menos uma revisão/comentário
+    combined.reviewCoverage = combined.prsCreated > 0 ? (combined.pullsWithReview / combined.prsCreated) * 100 : 0;
+    
     combined.authors = authorsMap;
     combined.commitsTimeline = commitsTimelineMap;
 
@@ -130,6 +126,7 @@ export class DataAggregator {
       issuesClosed: 0,
       reviews: 0,
       comments: 0,
+      pullsWithReview: 0,
       avgTimeFirstReview: 0,
       avgTimeMerge: 0,
       reviewCoverage: 0,

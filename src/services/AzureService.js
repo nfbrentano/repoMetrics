@@ -189,6 +189,7 @@ export class AzureService extends BaseGitService {
       authors: results.authors,
       reviews: results.reviews,
       comments: results.reviews,
+      pullsWithReview: results.pullsWithReview,
       commitsTimeline
     };
   }
