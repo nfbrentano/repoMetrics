@@ -1,0 +1,35 @@
+version: "2"
+type: backend
+tech_stack:
+  - Node.js
+  - Express
+  - SQLite (better-sqlite3)
+  - JavaScript (ES6)
+features:
+  - name: Repository Management
+    description: CRUD and synchronization of external repository metadata
+    files:
+      - server/index.js
+      - server/db.js
+    endpoints:
+      - method: POST
+        path: /api/repos
+        description: Save or update repository configurations
+        auth_required: false
+      - method: GET
+        path: /api/metrics
+        description: Retrieve calculated metrics for configured repositories
+        auth_required: false
+      - method: GET
+        path: /api/sync/status
+        description: Check the current status of background synchronization
+        auth_required: false
+      - method: POST
+        path: /api/sync
+        description: Start incremental synchronization in the background
+        auth_required: false
+      - method: POST
+        path: /api/sync/force
+        description: Force a full re-synchronization of selected repositories
+        auth_required: false
+known_limitations: []
