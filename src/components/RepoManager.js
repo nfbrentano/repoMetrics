@@ -1,3 +1,5 @@
+import { loadRepos, saveRepos } from '../utils/storage.js';
+
 export class RepoManager {
   constructor(onUpdate) {
     this.onUpdate = onUpdate;

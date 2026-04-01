@@ -21,10 +21,14 @@ const THEME_COLORS = {
 
 const init = async () => {
   // Initialize Repo Manager
-  new RepoManager((repos) => {
-    updateRepoCount(repos);
-    refreshData();
-  });
+  try {
+    new RepoManager((repos) => {
+      updateRepoCount(repos);
+      refreshData();
+    });
+  } catch (err) {
+    console.error('Failed to initialize RepoManager:', err);
+  }
 
   // Header Button -> Go to Repos Tab
   const goToRepoBtn = document.getElementById('goToRepoManager');
@@ -175,7 +179,12 @@ const refreshData = async () => {
   }
 
   if (pbContainer) pbContainer.style.display = 'none';
-  titleEl.innerText = originalTitle;
+  const titles = {
+    'atividade': 'Painel de Atividade',
+    'colaboracao': 'Dashboard de Colaboração',
+    'repositorios': 'Repositórios Integrados'
+  };
+  titleEl.innerText = titles[currentTab] || 'Dashboard';
   updateLastSyncIndicator();
 };
 
