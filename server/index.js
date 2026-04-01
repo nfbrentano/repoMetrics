@@ -86,7 +86,10 @@ app.post('/api/repos', (req, res) => {
 // ─────────────────────────────────────────────
 // POST /api/sync — Sync repos (incremental)
 // ─────────────────────────────────────────────
-app.post('/api/sync', async (req, res) => {
+// ─────────────────────────────────────────────
+// Core Sync Logic (Shared)
+// ─────────────────────────────────────────────
+async function performSync(req, res) {
   const { repos, rangeMonths = 6, author = null } = req.body;
 
   if (!repos || !Array.isArray(repos) || repos.length === 0) {
@@ -163,6 +166,13 @@ app.post('/api/sync', async (req, res) => {
     console.error('Sync error:', err);
     res.status(500).json({ error: err.message });
   }
+}
+
+// ─────────────────────────────────────────────
+// POST /api/sync — Sync repos (incremental)
+// ─────────────────────────────────────────────
+app.post('/api/sync', async (req, res) => {
+  return performSync(req, res);
 });
 
 // ─────────────────────────────────────────────
@@ -199,7 +209,7 @@ app.post('/api/sync/force', async (req, res) => {
   const { repos, rangeMonths = 6 } = req.body;
 
   // Reset last_synced_at for all matching repos
-  if (repos) {
+  if (repos && Array.isArray(repos) && repos.length > 0) {
     for (const repo of repos) {
       const id = repo.id || `${repo.provider}_${repo.namespace}_${repo.repo}`;
       db.prepare('UPDATE repos SET last_synced_at = NULL WHERE id = ?').run(id);
@@ -208,20 +218,14 @@ app.post('/api/sync/force', async (req, res) => {
     db.prepare('UPDATE repos SET last_synced_at = NULL').run();
   }
 
-  // Forward to normal sync
-  req.body.rangeMonths = rangeMonths;
-  if (!repos) {
+  // Forward to normal sync logic
+  if (!repos || !Array.isArray(repos) || repos.length === 0) {
     const allRepos = db.prepare('SELECT * FROM repos WHERE is_wildcard = 0').all();
     req.body.repos = allRepos;
   }
-
-  // Delegate to /api/sync handler logic
-  const syncHandler = app._router.stack.find(
-    r => r.route && r.route.path === '/api/sync' && r.route.methods.post
-  );
-
-  // Just re-call sync
-  return res.redirect(307, '/api/sync');
+  
+  req.body.rangeMonths = rangeMonths;
+  return performSync(req, res);
 });
 
 // ─────────────────────────────────────────────
