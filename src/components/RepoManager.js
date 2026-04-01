@@ -46,16 +46,19 @@ export class RepoManager {
 
     try {
       const res = await fetch('/api/sync/force', { method: 'POST' });
-      if (!res.ok) throw new Error('Falha ao iniciar sincronização forçada');
-      
       const data = await res.json();
-      alert('Sincronização forçada iniciada com sucesso! Os dados aparecerão em instantes.');
+
+      if (!res.ok && res.status !== 202) {
+        throw new Error(data.error || 'Falha ao iniciar sincronização forçada');
+      }
       
-      // Trigger update
+      alert(data.message || 'Sincronização forçada iniciada com sucesso! Os dados aparecerão em instantes conforme forem processados.');
+      
+      // Trigger update to show repositories (even if not synced yet)
       if (this.onUpdate) this.onUpdate(loadRepos());
     } catch (err) {
       console.error(err);
-      alert('Erro ao forçar sincronização: ' + err.message);
+      alert('Aviso: ' + err.message);
     } finally {
       this.forceResyncBtn.disabled = false;
       this.forceResyncBtn.innerHTML = `

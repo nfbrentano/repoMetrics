@@ -13,6 +13,30 @@ export class MetricsCalculator {
     sinceDate.setMonth(sinceDate.getMonth() - rangeInMonths);
     const sinceISO = sinceDate.toISOString();
 
+    if (!repoIds || repoIds.length === 0) {
+      return {
+        commits: 0,
+        prsCreated: 0,
+        prsMerged: 0,
+        prsOpen: 0,
+        issuesOpen: 0,
+        issuesClosed: 0,
+        issuesTotal: 0,
+        reviews: 0,
+        comments: 0,
+        pullsWithReview: 0,
+        avgTimeFirstReview: 0,
+        avgTimeMerge: 0,
+        reviewCoverage: 0,
+        totalReviewTime: 0,
+        totalMergeTime: 0,
+        authors: {},
+        contributorStats: {},
+        commitsTimeline: {},
+        repoDetails: []
+      };
+    }
+
     const placeholders = repoIds.map(() => '?').join(',');
 
     // Commits

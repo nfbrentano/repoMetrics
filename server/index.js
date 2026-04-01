@@ -86,9 +86,8 @@ app.post('/api/repos', (req, res) => {
 // ─────────────────────────────────────────────
 // POST /api/sync — Sync repos (incremental)
 // ─────────────────────────────────────────────
-// ─────────────────────────────────────────────
-// Core Sync Logic (Shared)
-// ─────────────────────────────────────────────
+let isSyncInProgress = false;
+
 async function performSync(req, res) {
   const { repos, rangeMonths = 6, author = null } = req.body;
 
@@ -96,76 +95,74 @@ async function performSync(req, res) {
     return res.status(400).json({ error: 'repos array is required' });
   }
 
-  try {
-    // Step 1: Expand wildcards
-    let resolvedRepos = [];
-    for (const repo of repos) {
-      if (repo.type === 'wildcard' || repo.repo === '*') {
-        try {
-          const discovered = await discoverRepos(repo);
-          // Attach the token from the original wildcard config
-          resolvedRepos = resolvedRepos.concat(discovered.map(d => ({ ...d, token: repo.token })));
-        } catch (e) {
-          console.error(`Falha ao expandir wildcard ${repo.namespace}:`, e.message);
-        }
-      } else {
-        // Generate stable ID if not already set
-        if (!repo.id || repo.id.match(/^\d+$/)) {
-          repo.id = `${repo.provider}_${repo.namespace}_${repo.repo}`;
-        }
-        resolvedRepos.push(repo);
-      }
-    }
-
-    // Step 2: Ensure all repos exist in DB
-    for (const repo of resolvedRepos) {
-      ensureRepoInDB(repo);
-    }
-
-    // Step 3: Sync each repo (with concurrency limit)
-    const CONCURRENCY = 4;
-    const queue = [...resolvedRepos];
-    const results = [];
-    let completed = 0;
-
-    const worker = async () => {
-      while (queue.length > 0) {
-        const repo = queue.shift();
-        try {
-          const service = getSyncService(repo);
-          const result = await service.sync(rangeMonths);
-          results.push({ repo: repo.repo, ...result });
-        } catch (err) {
-          console.error(`Sync falhou para ${repo.repo}:`, err.message);
-          results.push({ repo: repo.repo, error: err.message });
-        }
-        completed++;
-      }
-    };
-
-    const workers = Array.from({ length: CONCURRENCY }, () => worker());
-    await Promise.all(workers);
-
-    // Step 4: Calculate metrics from local DB
-    const repoIds = resolvedRepos.map(r => r.id);
-    const metrics = MetricsCalculator.getMetrics(repoIds, rangeMonths, author);
-
-    res.json({
-      ok: true,
-      syncResults: results,
-      repoCount: resolvedRepos.length,
-      metrics,
-      resolvedRepos: resolvedRepos.map(r => ({
-        id: r.id,
-        provider: r.provider,
-        namespace: r.namespace,
-        repo: r.repo
-      }))
-    });
-  } catch (err) {
-    console.error('Sync error:', err);
-    res.status(500).json({ error: err.message });
+  if (isSyncInProgress) {
+    return res.status(409).json({ error: 'Uma sincronização já está em andamento.' });
   }
+
+  // Respond immediately
+  res.status(202).json({ 
+    ok: true, 
+    message: 'Sincronização iniciada em segundo plano.',
+    repoCount: repos.length 
+  });
+
+  // Run in background
+  (async () => {
+    isSyncInProgress = true;
+    try {
+      console.log(`[Sync] Iniciando sincronização em background de ${repos.length} repositórios...`);
+      
+      // Step 1: Expand wildcards
+      let resolvedRepos = [];
+      for (const repo of repos) {
+        if (repo.type === 'wildcard' || repo.repo === '*') {
+          try {
+            const discovered = await discoverRepos(repo);
+            resolvedRepos = resolvedRepos.concat(discovered.map(d => ({ ...d, token: repo.token })));
+          } catch (e) {
+            console.error(`Falha ao expandir wildcard ${repo.namespace}:`, e.message);
+          }
+        } else {
+          if (!repo.id || repo.id.match(/^\d+$/)) {
+            repo.id = `${repo.provider}_${repo.namespace}_${repo.repo}`;
+          }
+          resolvedRepos.push(repo);
+        }
+      }
+
+      // Step 2: Ensure all repos exist in DB
+      for (const repo of resolvedRepos) {
+        ensureRepoInDB(repo);
+      }
+
+      // Step 3: Sync each repo (with concurrency limit)
+      const CONCURRENCY = 4;
+      const queue = [...resolvedRepos];
+      let completed = 0;
+
+      const worker = async () => {
+        while (queue.length > 0) {
+          const repo = queue.shift();
+          try {
+            const service = getSyncService(repo);
+            await service.sync(rangeMonths);
+          } catch (err) {
+            console.error(`Sync falhou para ${repo.repo}:`, err.message);
+          }
+          completed++;
+        }
+      };
+
+      const workers = Array.from({ length: CONCURRENCY }, () => worker());
+      await Promise.all(workers);
+      
+      console.log(`[Sync] ✓ Sincronização em background finalizada: ${completed} repositórios processados.`);
+    } catch (err) {
+      console.error('CRITICAL BACKGROUND SYNC ERROR:', err.stack || err);
+    } finally {
+      isSyncInProgress = false;
+    }
+  })();
 }
 
 // ─────────────────────────────────────────────
