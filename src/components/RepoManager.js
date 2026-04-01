@@ -1,29 +1,17 @@
-import { loadRepos, saveRepos } from '../utils/storage.js';
-import { GitHubService } from '../services/GitHubService.js';
-import { GitLabService } from '../services/GitLabService.js';
-import { BitbucketService } from '../services/BitbucketService.js';
-import { AzureService } from '../services/AzureService.js';
-
 export class RepoManager {
   constructor(onUpdate) {
     this.onUpdate = onUpdate;
-    this.modal = document.getElementById('repoModal');
-    this.trigger = document.getElementById('openRepoManager');
-    this.closeBtn = document.getElementById('closeRepoModal');
     this.addBtn = document.getElementById('addRepoBtn');
     this.reposContainer = document.getElementById('activeReposContainer');
     this.wildcardCheckbox = document.getElementById('repoWildcard');
     this.repoNameInput = document.getElementById('repoName');
+    this.forceResyncBtn = document.getElementById('forceResyncBtn');
     
     this.init();
   }
 
   init() {
-    this.trigger.onclick = () => this.showModal();
-    this.closeBtn.onclick = () => this.hideModal();
-    window.onclick = (e) => { if (e.target === this.modal) this.hideModal(); };
-    
-    this.addBtn.onclick = () => this.addRepo();
+    if (this.addBtn) this.addBtn.onclick = () => this.addRepo();
     
     if (this.wildcardCheckbox) {
       this.wildcardCheckbox.addEventListener('change', (e) => {
@@ -39,15 +27,40 @@ export class RepoManager {
       });
     }
 
+    if (this.forceResyncBtn) {
+      this.forceResyncBtn.onclick = () => this.forceResync();
+    }
+
     this.renderRepos();
   }
 
-  showModal() {
-    this.modal.style.display = 'flex';
-  }
+  async forceResync() {
+    if (!confirm('Isso irá apagar o histórico de sincronização local e buscar todos os dados novamente de todas as APIs. Deseja continuar?')) {
+      return;
+    }
 
-  hideModal() {
-    this.modal.style.display = 'none';
+    this.forceResyncBtn.disabled = true;
+    this.forceResyncBtn.innerHTML = '<span class="status-spinner"></span> Sincronizando...';
+
+    try {
+      const res = await fetch('/api/sync/force', { method: 'POST' });
+      if (!res.ok) throw new Error('Falha ao iniciar sincronização forçada');
+      
+      const data = await res.json();
+      alert('Sincronização forçada iniciada com sucesso! Os dados aparecerão em instantes.');
+      
+      // Trigger update
+      if (this.onUpdate) this.onUpdate(loadRepos());
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao forçar sincronização: ' + err.message);
+    } finally {
+      this.forceResyncBtn.disabled = false;
+      this.forceResyncBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+        Forçar Re-sync Total
+      `;
+    }
   }
 
   async addRepo() {
@@ -67,30 +80,18 @@ export class RepoManager {
 
     const repos = loadRepos();
 
-    if (this.wildcardCheckbox.checked) {
-      const newRepo = {
-        id: Date.now().toString(),
-        provider,
-        token,
-        namespace,
-        repo: '*',
-        type: 'wildcard',
-        active: true
-      };
-      repos.push(newRepo);
-      saveRepos(repos);
-    } else {
-      const newRepo = {
-        id: Date.now().toString(),
-        provider,
-        token,
-        namespace,
-        repo,
-        active: true
-      };
-      repos.push(newRepo);
-      saveRepos(repos);
-    }
+    const newRepo = {
+      id: Date.now().toString(),
+      provider,
+      token,
+      namespace,
+      repo: this.wildcardCheckbox.checked ? '*' : repo,
+      type: this.wildcardCheckbox.checked ? 'wildcard' : 'standard',
+      active: true
+    };
+    
+    repos.push(newRepo);
+    saveRepos(repos);
     
     // Clear inputs
     document.getElementById('repoToken').value = '';
@@ -101,14 +102,15 @@ export class RepoManager {
     this.repoNameInput.style.opacity = '1';
 
     this.renderRepos();
-    this.onUpdate(repos);
+    if (this.onUpdate) this.onUpdate(repos);
   }
 
   removeRepo(id) {
+    if (!confirm('Deseja remover esta configuração de repositório?')) return;
     const repos = loadRepos().filter(r => r.id !== id);
     saveRepos(repos);
     this.renderRepos();
-    this.onUpdate(repos);
+    if (this.onUpdate) this.onUpdate(repos);
   }
 
   renderRepos() {
@@ -116,23 +118,29 @@ export class RepoManager {
     this.reposContainer.innerHTML = '';
 
     if (repos.length === 0) {
-      this.reposContainer.innerHTML = '<p style="color: var(--text-muted); font-size: 0.8rem">Nenhum repositório configurado.</p>';
+      this.reposContainer.innerHTML = '<p style="color: var(--text-muted); font-size: 0.8rem">Nenhuma configuração ativa.</p>';
       return;
     }
 
     repos.forEach(repo => {
       const item = document.createElement('div');
-      item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--glass-bg); border-radius: 8px; border: 1px solid var(--glass-border);';
+      item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid var(--glass-border); transition: var(--transition);';
       
       const info = document.createElement('div');
       info.innerHTML = `
-        <div style="font-weight: 600; font-size: 0.875rem">${repo.repo}</div>
-        <div style="font-size: 0.75rem; color: var(--text-muted)">${repo.provider} / ${repo.namespace}</div>
+        <div style="font-weight: 700; font-size: 0.9rem; color: #fff; margin-bottom: 0.25rem;">${repo.repo}</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.5rem;">
+          <span style="text-transform: uppercase; font-weight: 800; color: var(--primary); font-size: 0.65rem;">${repo.provider}</span>
+          <span>•</span>
+          <span>${repo.namespace}</span>
+        </div>
       `;
 
       const delBtn = document.createElement('button');
-      delBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
-      delBtn.style.cssText = 'background: none; border: none; color: var(--danger); cursor: pointer; padding: 0.25rem;';
+      delBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+      delBtn.style.cssText = 'background: rgba(239, 68, 68, 0.1); border: none; color: var(--danger); cursor: pointer; padding: 0.5rem; border-radius: 8px; transition: var(--transition);';
+      delBtn.onmouseover = () => delBtn.style.background = 'rgba(239, 68, 68, 0.2)';
+      delBtn.onmouseout = () => delBtn.style.background = 'rgba(239, 68, 68, 0.1)';
       delBtn.onclick = () => this.removeRepo(repo.id);
 
       item.appendChild(info);

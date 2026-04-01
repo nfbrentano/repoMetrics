@@ -189,7 +189,8 @@ export class AzureSync extends BaseSyncService {
   }
 
   async fetchCommits(since) {
-    const url = `${this.azureBaseUrl}/commits?searchCriteria.fromDate=${since}&api-version=6.0`;
+    const encodedSince = encodeURIComponent(since);
+    const url = `${this.azureBaseUrl}/commits?searchCriteria.fromDate=${encodedSince}&api-version=6.0`;
     return this.fetchJSON(url, this.azureHeaders) || { value: [] };
   }
 

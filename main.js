@@ -26,6 +26,12 @@ const init = async () => {
     refreshData();
   });
 
+  // Header Button -> Go to Repos Tab
+  const goToRepoBtn = document.getElementById('goToRepoManager');
+  if (goToRepoBtn) {
+    goToRepoBtn.onclick = () => switchTab('repositorios');
+  }
+
   // Tab Switching
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', (e) => {
@@ -181,13 +187,18 @@ const updateLastSyncIndicator = async () => {
     if (status && status.length > 0) {
       const latest = status[0].last_synced_at;
       if (latest) {
-        const d = new Date(latest + 'Z');
-        const timeStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        const dateStr = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-        const indicator = document.getElementById('lastSyncIndicator');
-        if (indicator) {
-          indicator.innerText = `Último sync: ${dateStr} ${timeStr}`;
-          indicator.style.display = 'inline';
+        // Handle both old SQLite format and new ISO format
+        const dateToParse = latest.includes('Z') ? latest : latest.replace(' ', 'T') + 'Z';
+        const d = new Date(dateToParse);
+        
+        if (!isNaN(d.getTime())) {
+          const timeStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+          const dateStr = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+          const indicator = document.getElementById('lastSyncIndicator');
+          if (indicator) {
+            indicator.innerText = `Último sync: ${dateStr} ${timeStr}`;
+            indicator.style.display = 'inline';
+          }
         }
       }
     }

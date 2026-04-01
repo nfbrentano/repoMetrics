@@ -36,7 +36,7 @@
             <button class="filter-btn" data-range="1m" style="background: transparent; border: none; color: var(--text-muted); padding: 4px 12px; font-weight: 600; cursor: pointer; border-radius: 8px;">1m</button>
             <button class="filter-btn active" data-range="6m" style="background: var(--primary); border: none; color: #fff; padding: 4px 12px; font-weight: 600; cursor: pointer; border-radius: 8px;">6m</button>
           </div>
-          <button class="action-btn" id="openRepoManager">
+          <button class="action-btn" id="goToRepoManager">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
             Gerenciar Repos
           </button>
@@ -169,50 +169,60 @@
           </div>
         </div>
 
-        <!-- Aba Repositórios -->
-        <div id="repositorios" class="tab-content">
-          <div class="repo-list-header">
-            <h3>Repositórios Conectados à API</h3>
-            <p>Lista de todas as origens de dados (repositórios git) atualmente ativas e agregadas no dashboard.</p>
+        <!-- Aba Repositórios (Gestão Dedicada) -->
+        <div id="repositorios" class="tab-content" style="grid-template-columns: 1fr 1.5fr; gap: 2.5rem; align-items: start;">
+          <!-- Coluna 1: Configuração e Lista para Gestão -->
+          <div class="repo-management-panel" style="background: var(--surface-color); border: 1px solid var(--glass-border); border-radius: 24px; padding: 2.5rem; backdrop-filter: blur(20px);">
+            <div class="repo-list-header" style="margin-bottom: 2rem;">
+              <h3 style="color: #fff; font-size: 1.5rem; margin-bottom: 0.5rem;">Gerenciar Repositórios</h3>
+              <p style="color: var(--text-muted); font-size: 0.9rem;">Adicione tokens e namespaces para sincronizar seus dados.</p>
+            </div>
+
+            <div id="repoForm" style="display: grid; gap: 1rem">
+              <select id="providerSelect" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px; font-weight: 600">
+                <option value="github">GitHub</option>
+                <option value="azure">Azure DevOps</option>
+                <option value="gitlab">GitLab</option>
+                <option value="bitbucket">Bitbucket</option>
+              </select>
+              <input type="password" id="repoToken" placeholder="Personal Access Token (PAT)" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px" />
+              <input type="text" id="repoNamespace" placeholder="Dono / Organização / Projeto" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px" />
+              <div class="form-group checkbox-group" style="margin: 0.5rem 0;">
+                <input type="checkbox" id="repoWildcard">
+                <label for="repoWildcard" style="color: white; font-size: 0.85rem; cursor: pointer;">Importar todos os repositórios (Auto-discovery)</label>
+              </div>
+              <input type="text" id="repoName" placeholder="Nome do Repositório (Slug)" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px" />
+              <button id="addRepoBtn" style="background: var(--primary); color: white; border: none; padding: 1rem; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 0.5rem; box-shadow: 0 4px 15px var(--primary-glow); transition: var(--transition)">Adicionar Repositório</button>
+            </div>
+
+            <div id="repoList" style="margin-top: 2.5rem; border-top: 1px solid var(--glass-border); padding-top: 1.5rem">
+              <p style="color: var(--text-muted); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 1.5rem; letter-spacing: 1px;">Configurações Ativas</p>
+              <div id="activeReposContainer" style="display: grid; gap: 1rem;">
+                <!-- Configurações de API inseridas aqui -->
+              </div>
+            </div>
           </div>
-          <div class="repo-grid" id="integratedRepoContainer">
-            <!-- Repositórios serão inseridos aqui pelo JS -->
+
+          <!-- Coluna 2: Status de Sincronização e Repositórios Individuais -->
+          <div class="repo-status-panel">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+              <div>
+                <h3 style="color: #fff; font-size: 1.5rem; margin-bottom: 0.5rem;">Status de Sincronização</h3>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">Visualize o estado atual dos dados locais.</p>
+              </div>
+              <button class="action-btn" id="forceResyncBtn" style="background: rgba(239, 68, 68, 0.1); color: var(--danger); border-color: rgba(239, 68, 68, 0.2);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+                Forçar Re-sync Total
+              </button>
+            </div>
+            
+            <div class="repo-grid" id="integratedRepoContainer">
+              <!-- Repositórios serão inseridos aqui pelo JS -->
+            </div>
           </div>
         </div>
       </main>
 
-      <!-- Modal Overlay -->
-      <div class="modal-overlay" id="repoModal">
-        <div class="modal-content" style="background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 24px; padding: 3rem">
-          <h2 style="margin-bottom: 2rem; text-align: center; color: #fff">Gerenciar Repositórios</h2>
-          
-          <div id="repoForm" style="display: grid; gap: 1rem">
-            <select id="providerSelect" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px; font-weight: 600">
-              <option value="github">GitHub</option>
-              <option value="azure">Azure DevOps</option>
-              <option value="gitlab">GitLab</option>
-              <option value="bitbucket">Bitbucket</option>
-            </select>
-            <input type="text" id="repoToken" placeholder="Personal Access Token (PAT)" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px" />
-            <input type="text" id="repoNamespace" placeholder="Dono / Organização / Projeto" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px" />
-            <div class="form-group checkbox-group">
-              <input type="checkbox" id="repoWildcard">
-              <label for="repoWildcard" style="margin-bottom: 0; color: white;">Importar todos os repositórios (Auto-discovery)</label>
-            </div>
-            <input type="text" id="repoName" placeholder="Nome do Repositório (Slug)" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px" />
-            <button id="addRepoBtn" style="background: var(--primary); color: white; border: none; padding: 1rem; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 1rem; box-shadow: 0 4px 15px var(--primary-glow)">Adicionar Repositório</button>
-          </div>
-
-          <div id="repoList" style="margin-top: 2.5rem; border-top: 1px solid var(--glass-border); padding-top: 1.5rem">
-            <p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 1rem">REPOSITÓRIOS CONFIGURADOS</p>
-            <div id="activeReposContainer" style="display: grid; gap: 0.75rem; max-height: 250px; overflow-y: auto"></div>
-          </div>
-
-          <button id="closeRepoModal" style="position: absolute; top: 1.5rem; right: 1.5rem; background: none; border: none; color: var(--text-muted); cursor: pointer">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-      </div>
     </div>
 
     <script type="module" src="/main.js"></script>

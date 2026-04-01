@@ -178,7 +178,10 @@ export class GitHubSync extends BaseSyncService {
   }
 
   async fetchCommits(since) {
-    const url = `${this.baseUrl}/repos/${this.namespace}/${this.repo}/commits?since=${since}&per_page=100`;
+    // Ensure ISO format (replace space with T and append Z if needed)
+    const isoSince = since.includes('T') ? since : since.replace(' ', 'T') + 'Z';
+    const encodedSince = encodeURIComponent(isoSince);
+    const url = `${this.baseUrl}/repos/${this.namespace}/${this.repo}/commits?since=${encodedSince}&per_page=100`;
     const data = await this.fetchJSON(url, this.headers);
     return data || [];
   }
@@ -191,7 +194,9 @@ export class GitHubSync extends BaseSyncService {
   }
 
   async fetchIssues(since) {
-    const url = `${this.baseUrl}/repos/${this.namespace}/${this.repo}/issues?state=all&since=${since}&per_page=100`;
+    const isoSince = since.includes('T') ? since : since.replace(' ', 'T') + 'Z';
+    const encodedSince = encodeURIComponent(isoSince);
+    const url = `${this.baseUrl}/repos/${this.namespace}/${this.repo}/issues?state=all&since=${encodedSince}&per_page=100`;
     const data = await this.fetchJSON(url, this.headers);
     return data || [];
   }

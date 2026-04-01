@@ -24,7 +24,8 @@ export class BaseSyncService {
   }
 
   updateLastSynced() {
-    db.prepare('UPDATE repos SET last_synced_at = datetime(\'now\') WHERE id = ?').run(this.repoId);
+    const now = new Date().toISOString();
+    db.prepare('UPDATE repos SET last_synced_at = ? WHERE id = ?').run(now, this.repoId);
   }
 
   async fetchJSON(url, headers) {

@@ -127,15 +127,17 @@ export class GitLabSync extends BaseSyncService {
   }
 
   async fetchCommits(since) {
-    const url = `${this.baseUrl}/projects/${encodeURIComponent(this.projectId)}/repository/commits?since=${since}&per_page=100`;
+    const encodedSince = encodeURIComponent(since);
+    const url = `${this.baseUrl}/projects/${encodeURIComponent(this.projectId)}/repository/commits?since=${encodedSince}&per_page=100`;
     return await this.fetchJSON(url, this.glHeaders) || [];
   }
-
+ 
   async fetchMRs(since) {
-    const url = `${this.baseUrl}/projects/${encodeURIComponent(this.projectId)}/merge_requests?created_after=${since}&per_page=100`;
+    const encodedSince = encodeURIComponent(since);
+    const url = `${this.baseUrl}/projects/${encodeURIComponent(this.projectId)}/merge_requests?created_after=${encodedSince}&per_page=100`;
     return await this.fetchJSON(url, this.glHeaders) || [];
   }
-
+ 
   async fetchNotes(mrIid) {
     const url = `${this.baseUrl}/projects/${encodeURIComponent(this.projectId)}/merge_requests/${mrIid}/notes`;
     return await this.fetchJSON(url, this.glHeaders) || [];
