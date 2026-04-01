@@ -8,7 +8,7 @@ export class MetricsCalculator {
   /**
    * Get aggregated metrics for given repos within a date range
    */
-  static getMetrics(repoIds, rangeInMonths = 6) {
+  static getMetrics(repoIds, rangeInMonths = 6, author = null) {
     const sinceDate = new Date();
     sinceDate.setMonth(sinceDate.getMonth() - rangeInMonths);
     const sinceISO = sinceDate.toISOString();
@@ -16,30 +16,61 @@ export class MetricsCalculator {
     const placeholders = repoIds.map(() => '?').join(',');
 
     // Commits
-    const commits = db.prepare(`
-      SELECT repo_id, sha, author, date FROM commits
-      WHERE repo_id IN (${placeholders}) AND date >= ?
-      ORDER BY date DESC
-    `).all(...repoIds, sinceISO);
+    let commitsRaw;
+    if (author) {
+      commitsRaw = db.prepare(`
+        SELECT repo_id, sha, author, date FROM commits
+        WHERE repo_id IN (${placeholders}) AND date >= ? AND author = ?
+        ORDER BY date DESC
+      `).all(...repoIds, sinceISO, author);
+    } else {
+      commitsRaw = db.prepare(`
+        SELECT repo_id, sha, author, date FROM commits
+        WHERE repo_id IN (${placeholders}) AND date >= ?
+        ORDER BY date DESC
+      `).all(...repoIds, sinceISO);
+    }
 
     // PRs
-    const prs = db.prepare(`
-      SELECT repo_id, number, state, created_at, merged_at, closed_at, author FROM pull_requests
-      WHERE repo_id IN (${placeholders}) AND created_at >= ?
-    `).all(...repoIds, sinceISO);
+    let prsRaw;
+    if (author) {
+      prsRaw = db.prepare(`
+        SELECT repo_id, number, state, created_at, merged_at, closed_at, author FROM pull_requests
+        WHERE repo_id IN (${placeholders}) AND created_at >= ? AND author = ?
+      `).all(...repoIds, sinceISO, author);
+    } else {
+      prsRaw = db.prepare(`
+        SELECT repo_id, number, state, created_at, merged_at, closed_at, author FROM pull_requests
+        WHERE repo_id IN (${placeholders}) AND created_at >= ?
+      `).all(...repoIds, sinceISO);
+    }
 
-    // Issues
+    // Issues (Note: Issues table currently doesn't have an author field)
     const issues = db.prepare(`
       SELECT repo_id, number, state, created_at, closed_at FROM issues
       WHERE repo_id IN (${placeholders}) AND created_at >= ?
     `).all(...repoIds, sinceISO);
 
     // Reviews
-    const reviews = db.prepare(`
-      SELECT r.repo_id, r.pr_number, r.reviewer, r.submitted_at
-      FROM reviews r
-      WHERE r.repo_id IN (${placeholders})
-    `).all(...repoIds);
+    let reviewsRaw;
+    if (author) {
+      // For reviews, we filter by reviewer
+      reviewsRaw = db.prepare(`
+        SELECT r.repo_id, r.pr_number, r.reviewer, r.submitted_at
+        FROM reviews r
+        WHERE r.repo_id IN (${placeholders}) AND r.reviewer = ?
+      `).all(...repoIds, author);
+    } else {
+      reviewsRaw = db.prepare(`
+        SELECT r.repo_id, r.pr_number, r.reviewer, r.submitted_at
+        FROM reviews r
+        WHERE r.repo_id IN (${placeholders})
+      `).all(...repoIds);
+    }
+
+    const commits = commitsRaw;
+    const prs = prsRaw;
+    const reviews = reviewsRaw;
 
     // Calculate aggregate metrics
     const totalCommits = commits.length;
@@ -154,6 +185,19 @@ export class MetricsCalculator {
       };
     });
 
+    // Contributor stats matrix
+    const contributorStats = {};
+    const getStats = (name) => {
+      if (!contributorStats[name]) {
+        contributorStats[name] = { commits: 0, prs: 0, reviews: 0 };
+      }
+      return contributorStats[name];
+    };
+
+    commits.forEach(c => getStats(c.author).commits++);
+    prs.forEach(p => getStats(p.author).prs++);
+    reviews.forEach(r => getStats(r.reviewer).reviews++);
+
     return {
       commits: totalCommits,
       prsCreated: totalPRsCreated,
@@ -171,6 +215,7 @@ export class MetricsCalculator {
       totalReviewTime,
       totalMergeTime,
       authors: authorsMap,
+      contributorStats,
       commitsTimeline,
       repoDetails
     };

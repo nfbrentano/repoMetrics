@@ -6,6 +6,7 @@ import { loadRepos, loadRange, saveRange } from './src/utils/storage.js';
 
 let currentTab = 'atividade';
 let currentRange = loadRange() || '6m';
+let currentAuthor = '';
 let chartInstances = {};
 
 const THEME_COLORS = {
@@ -52,6 +53,15 @@ const init = async () => {
       setRange(range);
     });
   });
+
+  // Contributor Filter
+  const authorFilter = document.getElementById('contributorFilter');
+  if (authorFilter) {
+    authorFilter.addEventListener('change', (e) => {
+      currentAuthor = e.target.value;
+      refreshData();
+    });
+  }
 
   // Initial Fetch
   const repos = loadRepos();
@@ -124,7 +134,7 @@ const refreshData = async () => {
 
   // ── Step 1: Try loading cached data instantly ──
   titleEl.innerText = 'Verificando cache local...';
-  const cached = await DataAggregator.getCachedMetrics(rangeMonths);
+  const cached = await DataAggregator.getCachedMetrics(rangeMonths, currentAuthor);
 
   if (cached) {
     // Exibe dados do cache IMEDIATAMENTE enquanto o sync roda em background
@@ -137,6 +147,7 @@ const refreshData = async () => {
     }
     titleEl.innerText = originalTitle;
     updateLastSyncIndicator();
+    if (cached.authors) populateContributors(cached.authors);
   }
 
   // ── Step 2: Sync incremental in background ──
@@ -157,12 +168,13 @@ const refreshData = async () => {
       rawRepos, rangeMonths, (completed, total, repo) => {
         titleEl.innerText = `Sincronizando ${repo.repo} (${completed}/${total})...`;
         if (pbFill) pbFill.style.width = `${(completed / total) * 100}%`;
-      }
+      }, currentAuthor
     );
 
     if (metrics) {
       updateUI(metrics);
       renderCharts(metrics);
+      if (metrics.authors) populateContributors(metrics.authors);
       renderRepoList(
         resolvedRepos.length > 0 ? resolvedRepos : rawRepos,
         metrics.repoDetails || [],
@@ -214,6 +226,76 @@ const updateLastSyncIndicator = async () => {
   } catch {
     // Silently ignore if backend is down
   }
+};
+
+const populateContributors = (authorsMap) => {
+  const select = document.getElementById('contributorFilter');
+  if (!select) return;
+
+  const authors = Object.keys(authorsMap).sort((a, b) => b[1] - a[1]);
+  const currentValue = select.value;
+
+  // Clear but keep "Todos"
+  select.innerHTML = '<option value="">Todos Contribuidores</option>';
+  
+  authors.forEach(author => {
+    const opt = document.createElement('option');
+    opt.value = author;
+    opt.innerText = author;
+    select.appendChild(opt);
+  });
+
+  // Restore selection if still valid
+  if (currentValue && authors.includes(currentValue)) {
+    select.value = currentValue;
+  } else if (!authors.includes(currentValue)) {
+    currentAuthor = '';
+    select.value = '';
+  }
+};
+
+const renderContributorsTable = (stats) => {
+  const container = document.getElementById('topContributorsTable');
+  if (!container) return;
+
+  const sortedAuthors = Object.entries(stats)
+    .sort((a, b) => (b[1].commits + b[1].prs) - (a[1].commits + a[1].prs))
+    .slice(0, 10);
+
+  if (sortedAuthors.length === 0) {
+    container.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 2rem;">Sem dados de contribuição para o período.</p>';
+    return;
+  }
+
+  container.innerHTML = `
+    <table style="width: 100%; border-collapse: collapse; color: #fff; margin-top: 1rem;">
+      <thead>
+        <tr style="text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05); color: var(--text-muted); font-size: 0.85rem;">
+          <th style="padding: 1rem;">Contribuidor</th>
+          <th style="padding: 1rem;">Commits</th>
+          <th style="padding: 1rem;">PRs</th>
+          <th style="padding: 1rem;">Reviews</th>
+          <th style="padding: 1rem; text-align: right;">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${sortedAuthors.map(([name, s]) => `
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.02); transition: background 0.2s ease;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
+            <td style="padding: 1.25rem 1rem; display: flex; align-items: center; gap: 12px;">
+              <div style="width: 32px; height: 32px; background: var(--primary); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.75rem; color: #fff; text-transform: uppercase;">
+                ${name.substring(0, 2)}
+              </div>
+              <span style="font-weight: 600;">${name}</span>
+            </td>
+            <td style="padding: 1rem;">${s.commits}</td>
+            <td style="padding: 1rem;">${s.prs}</td>
+            <td style="padding: 1rem;">${s.reviews}</td>
+            <td style="padding: 1rem; text-align: right; font-weight: 700; color: var(--primary);">${s.commits + s.prs + s.reviews}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
 };
 
 const renderRepoList = (repos, repoDetails = [], isSyncing = false) => {
@@ -365,6 +447,11 @@ const renderCharts = (metrics) => {
       stroke: { show: false }
     });
     chartInstances.authors.render();
+  }
+
+  // Contributor Table
+  if (metrics.contributorStats) {
+    renderContributorsTable(metrics.contributorStats);
   }
 
   // Collaboration Timeline (Bar Chart)

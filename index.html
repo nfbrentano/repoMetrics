@@ -32,7 +32,11 @@
         </nav>
 
         <div class="actions-bar">
-          <div class="global-filters" style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 4px; display: flex; gap: 4px;">
+          <div class="global-filters" style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 4px; display: flex; gap: 4px; align-items: center;">
+            <select id="contributorFilter" style="background: transparent; border: none; color: var(--text-muted); padding: 4px 8px; font-weight: 600; cursor: pointer; border-radius: 8px; outline: none; max-width: 150px;">
+              <option value="">Todos Contribuidores</option>
+            </select>
+            <div style="width: 1px; height: 16px; background: rgba(255,255,255,0.1); margin: 0 4px;"></div>
             <button class="filter-btn" data-range="1m" style="background: transparent; border: none; color: var(--text-muted); padding: 4px 12px; font-weight: 600; cursor: pointer; border-radius: 8px;">1m</button>
             <button class="filter-btn active" data-range="6m" style="background: var(--primary); border: none; color: #fff; padding: 4px 12px; font-weight: 600; cursor: pointer; border-radius: 8px;">6m</button>
           </div>
@@ -116,6 +120,11 @@
               <h3 style="margin-bottom: 2rem; font-weight: 700; color: #fff">Top Contribuidores</h3>
               <div id="authorsChart"></div>
             </div>
+          </div>
+          
+          <div class="chart-card" style="grid-column: 1 / -1; margin-top: 1.5rem;">
+            <h3 style="margin-bottom: 2rem; font-weight: 700; color: #fff">Detalhamento por Contribuidor</h3>
+            <div id="topContributorsTable"></div>
           </div>
         </div>
 

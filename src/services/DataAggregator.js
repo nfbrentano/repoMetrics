@@ -10,9 +10,11 @@ export class DataAggregator {
   /**
    * Try to get cached metrics from the backend (instant, no API calls)
    */
-  static async getCachedMetrics(rangeInMonths = 6) {
+  static async getCachedMetrics(rangeInMonths = 6, author = null) {
     try {
-      const res = await fetch(`${API_BASE}/metrics?range=${rangeInMonths}`);
+      let url = `${API_BASE}/metrics?range=${rangeInMonths}`;
+      if (author) url += `&author=${encodeURIComponent(author)}`;
+      const res = await fetch(url);
       if (!res.ok) return null;
       const data = await res.json();
       if (data.metrics && data.repoCount > 0) {
@@ -28,14 +30,14 @@ export class DataAggregator {
    * Sync repos through the backend (incremental, saves to SQLite)
    * Returns metrics calculated from the local DB after sync.
    */
-  static async syncAndAggregate(repos, rangeInMonths, onProgress) {
+  static async syncAndAggregate(repos, rangeInMonths, onProgress, author = null) {
     try {
       if (onProgress) onProgress(0, repos.length, { repo: 'Enviando para o servidor...' });
 
       const res = await fetch(`${API_BASE}/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repos, rangeMonths: rangeInMonths })
+        body: JSON.stringify({ repos, rangeMonths: rangeInMonths, author })
       });
 
       if (!res.ok) {

@@ -87,7 +87,7 @@ app.post('/api/repos', (req, res) => {
 // POST /api/sync — Sync repos (incremental)
 // ─────────────────────────────────────────────
 app.post('/api/sync', async (req, res) => {
-  const { repos, rangeMonths = 6 } = req.body;
+  const { repos, rangeMonths = 6, author = null } = req.body;
 
   if (!repos || !Array.isArray(repos) || repos.length === 0) {
     return res.status(400).json({ error: 'repos array is required' });
@@ -145,7 +145,7 @@ app.post('/api/sync', async (req, res) => {
 
     // Step 4: Calculate metrics from local DB
     const repoIds = resolvedRepos.map(r => r.id);
-    const metrics = MetricsCalculator.getMetrics(repoIds, rangeMonths);
+    const metrics = MetricsCalculator.getMetrics(repoIds, rangeMonths, author);
 
     res.json({
       ok: true,
@@ -170,6 +170,7 @@ app.post('/api/sync', async (req, res) => {
 // ─────────────────────────────────────────────
 app.get('/api/metrics', (req, res) => {
   const rangeMonths = parseInt(req.query.range) || 6;
+  const author = req.query.author || null;
 
   // Get all repo IDs from DB
   const repos = db.prepare('SELECT id FROM repos WHERE is_wildcard = 0').all();
@@ -179,7 +180,7 @@ app.get('/api/metrics', (req, res) => {
     return res.json({ metrics: null, repoCount: 0 });
   }
 
-  const metrics = MetricsCalculator.getMetrics(repoIds, rangeMonths);
+  const metrics = MetricsCalculator.getMetrics(repoIds, rangeMonths, author);
   res.json({ metrics, repoCount: repoIds.length });
 });
 
