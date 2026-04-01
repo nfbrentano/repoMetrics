@@ -194,13 +194,13 @@
                 <option value="gitlab">GitLab</option>
                 <option value="bitbucket">Bitbucket</option>
               </select>
-              <input type="password" id="repoToken" placeholder="Personal Access Token (PAT)" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px" />
-              <input type="text" id="repoNamespace" placeholder="Dono / Organização / Projeto" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px" />
+              <input type="password" id="repoToken" autocomplete="off" placeholder="Personal Access Token (PAT)" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px" />
+              <input type="text" id="repoNamespace" autocomplete="off" placeholder="Dono / Organização / Projeto" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px" />
               <div class="form-group checkbox-group" style="margin: 0.5rem 0;">
                 <input type="checkbox" id="repoWildcard">
                 <label for="repoWildcard" style="color: white; font-size: 0.85rem; cursor: pointer;">Importar todos os repositórios (Auto-discovery)</label>
               </div>
-              <input type="text" id="repoName" placeholder="Nome do Repositório (Slug)" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px" />
+              <input type="text" id="repoName" autocomplete="off" placeholder="Nome do Repositório (Slug)" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 1rem; border-radius: 12px" />
               <button id="addRepoBtn" style="background: var(--primary); color: white; border: none; padding: 1rem; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 0.5rem; box-shadow: 0 4px 15px var(--primary-glow); transition: var(--transition)">Adicionar Repositório</button>
             </div>
 
